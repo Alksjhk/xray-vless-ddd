@@ -29,7 +29,7 @@
 
 # Go build binaries
 xray
-xray-min
+xray-vless
 xray_softfloat
 mockgen
 vprotogen

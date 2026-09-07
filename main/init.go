@@ -1,6 +1,6 @@
 package main
 
-// xray-min init: interactive wizard that generates a vless.json config
+// xray-vless init: interactive wizard that generates a vless.json config
 // and prints a VLESS one-click import link.
 
 import (
@@ -93,10 +93,10 @@ func cmdInit(args []string) {
 		return line
 	}
 
-	fmt.Println("=== xray-min init: VLESS config wizard ===")
+	fmt.Println("=== xray-vless init: VLESS config wizard ===")
 
-	// 1. Listen IP (default: loopback)
-	ip := ask("Listen IP", "127.0.0.1")
+	// 1. Listen IP (default: all interfaces)
+	ip := ask("Listen IP", "0.0.0.0")
 
 	// 2. Port (default: 443)
 	var port int
@@ -201,7 +201,7 @@ func cmdInit(args []string) {
 		},
 	}
 
-	link := fmt.Sprintf("vless://%s@%s:%d?type=tcp&security=none&encryption=none#xray-min", uid, ip, port)
+	link := fmt.Sprintf("vless://%s@%s:%d?type=tcp&security=none&encryption=none#xray-vless", uid, ip, port)
 
 	if useReality {
 		cfg.Inbounds[0].Settings.Clients[0].Flow = "xtls-rprx-vision"
@@ -213,7 +213,7 @@ func cmdInit(args []string) {
 			PrivateKey:  privKey,
 			ShortIds:    []string{shortID},
 		}
-		link = fmt.Sprintf("vless://%s@%s:%d?type=tcp&security=reality&encryption=none&pbk=%s&sni=%s&sid=%s&fp=chrome&flow=xtls-rprx-vision#xray-min",
+		link = fmt.Sprintf("vless://%s@%s:%d?type=tcp&security=reality&encryption=none&pbk=%s&sni=%s&sid=%s&fp=chrome&flow=xtls-rprx-vision#xray-vless",
 			uid, ip, port, pubKey, sni, shortID)
 	}
 
@@ -229,7 +229,7 @@ func cmdInit(args []string) {
 
 	fmt.Println()
 	fmt.Println("=== Done: config written to vless.json ===")
-	fmt.Println("Run the server:  xray-min run -c vless.json")
+	fmt.Println("Run the server:  xray-vless run -c vless.json")
 	fmt.Println("Import link (VLESS):")
 	fmt.Println(link)
 }

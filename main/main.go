@@ -1,6 +1,6 @@
 package main
 
-// xray-min: minimal VLESS+REALITY server entry point.
+// xray-vless: minimal VLESS+REALITY server entry point.
 // Subcommands: run (default), x25519, uuid, version.
 // Behavior of x25519 / uuid is identical to the full Xray-core implementation
 // (copied verbatim from main/commands/all/{x25519,curve25519,uuid}.go).
@@ -68,11 +68,11 @@ func usage() {
 
 Usage:
 
-  xray-min init                    Interactive wizard: generate vless.json + import link
-  xray-min run -c config.json     Run the server (default command)
-  xray-min x25519                 Generate REALITY x25519 key pair
-  xray-min uuid [-i "example"]    Generate UUIDv4 or UUIDv5 (VLESS)
-  xray-min version                Show version
+  xray-vless init                    Interactive wizard: generate vless.json + import link
+  xray-vless run -c config.json     Run the server (default command)
+  xray-vless x25519                 Generate REALITY x25519 key pair
+  xray-vless uuid [-i "example"]    Generate UUIDv4 or UUIDv5 (VLESS)
+  xray-vless version                Show version
 
 `)
 }

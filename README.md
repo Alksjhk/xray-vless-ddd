@@ -1,4 +1,4 @@
-# xray-min — VLESS + REALITY 服务端最小裁剪版
+# xray-vless — VLESS + REALITY 服务端最小裁剪版
 
 从 [XTLS/Xray-core](https://github.com/XTLS/Xray-core) 源码裁剪出的最小可编译 Go 项目，
 只保留 **VLESS 服务端 inbound + REALITY TLS + freedom/blackhole outbound**。
@@ -13,7 +13,7 @@
 ## 1. 目录树（保留部分）
 
 ```
-xray-min/
+xray-vless/
 ├── main/main.go                  # 程序入口：run / x25519 / uuid / version 四个子命令
 ├── go.mod / go.sum               # 裁剪后的依赖（require 带功能分组注释）
 ├── core/                         # Xray 实例管理：core.New / 特性注册 / 配置装载接口
@@ -85,10 +85,10 @@ xray-min/
 ## 4. 密钥生成
 
 ```bash
-./xray-min x25519          # 输出 PrivateKey / Password (PublicKey) / Hash32，格式同完整版
-./xray-min x25519 -i "私钥" --std-encoding   # 从指定私钥派生，可选 std base64
-./xray-min uuid            # RFC 4122 UUIDv4
-./xray-min uuid -i example # UUIDv5（VLESS 确定性 UUID）
+./xray-vless x25519          # 输出 PrivateKey / Password (PublicKey) / Hash32，格式同完整版
+./xray-vless x25519 -i "私钥" --std-encoding   # 从指定私钥派生，可选 std base64
+./xray-vless uuid            # RFC 4122 UUIDv4
+./xray-vless uuid -i example # UUIDv5（VLESS 确定性 UUID）
 openssl rand -hex 8        # shortId（0~16 位偶数长度 hex，可多条）
 ```
 
@@ -142,29 +142,29 @@ UUID → 服务端 `settings.clients[].id`；shortId → 服务端 `realitySetti
 
 ```bash
 # Linux / macOS
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o xray-min ./main
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o xray-vless ./main
 
 # Windows (PowerShell)
 $env:CGO_ENABLED=0
-go build -trimpath -ldflags "-s -w" -o xray-min.exe ./main
+go build -trimpath -ldflags "-s -w" -o xray-vless.exe ./main
 ```
 
-运行：`./xray-min run -c config.json`（缺省 `-c` 时自动找当前目录 `config.json`，
+运行：`./xray-vless run -c config.json`（缺省 `-c` 时自动找当前目录 `config.json`，
 `run` 为默认子命令，也支持 stdin）。
 
 ### CI 自动构建（GitHub Actions）
 
-工作流：`.github/workflows/build.yml`。推送任意分支/tag 即触发（也可手动触发或随 Release 发布自动上传），
-只产出两个目标：
+工作流：`.github/workflows/build.yml`。推送任意分支即触发构建（也可手动触发）；
+推送 `v*` tag 时自动创建对应 Release 并上传产物。只产出两个目标：
 
 | 产物 | 说明 |
 | --- | --- |
-| `xray-min-linux-x64.zip` | `CGO_ENABLED=0` 纯静态 ELF（CI 会校验无 `PT_INTERP` / 无 `DT_NEEDED`），Linux x86_64 |
-| `xray-min-windows-x64.zip` | `xray-min.exe` 控制台版，Windows x86_64 |
+| `xray-vless-linux-x64` | `CGO_ENABLED=0` 纯静态 ELF（CI 会校验无 `PT_INTERP` / 无 `DT_NEEDED`），Linux x86_64 |
+| `xray-vless-windows-x64.exe` | 控制台版 Windows x86_64 二进制 |
 
-构建参数与上游一致（`-trimpath -buildvcs=false -gcflags="all=-l=4" -ldflags="-X github.com/xtls/xray-core/core.build=<commit> -s -w -buildid="`），
-每个包内含二进制 + `README.md` + `LICENSE`，并附 `*.zip.dgst`（md5/sha1/sha256/sha512）。
-非 Release 触发时产物在 Actions 的 Artifacts 里下载（90 天过期）。
+构建参数与上游一致（`-trimpath -buildvcs=false -gcflags="all=-l=4" -ldflags="-X github.com/xtls/xray-core/core.build=<commit> -s -w -buildid="`）。
+产物为裸二进制、不做 zip 压缩，每个二进制附同名 `*.dgst`（md5/sha1/sha256/sha512）。
+tag 构建的产物直接挂在 Release 上；普通分支构建的产物在 Actions 的 Artifacts 里下载（90 天过期）。
 
 ## 7. 与上游同步
 

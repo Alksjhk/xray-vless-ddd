@@ -101,4 +101,4 @@ func LoadJSONConfig(reader io.Reader) (*core.Config, error) {
 	return pbConfig, nil
 }
 
-// DecodeTOMLConfig / DecodeYAMLConfig were removed in xray-min (JSON-only).
+// DecodeTOMLConfig / DecodeYAMLConfig were removed in xray-vless (JSON-only).
