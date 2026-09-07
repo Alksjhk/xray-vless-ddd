@@ -1,0 +1,170 @@
+name: Build
+
+# 推送即构建：任意分支 push / tag push / 手动触发 / Release 发布（发布时附带上传产物）
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  # Release 发布产生的构建不做中断，避免上传产物到一半被取消
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
+jobs:
+  # 轻量静态检查：不阻塞 build，只反馈红绿
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Check gofmt
+        run: |
+          UNFORMATTED=$(gofmt -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "::error::以下文件未通过 gofmt：$(echo "$UNFORMATTED" | tr '\n' ' ')"
+            echo "$UNFORMATTED"
+            exit 1
+          fi
+          echo "gofmt: clean"
+
+      - name: Go vet
+        run: go vet ./...
+
+  build:
+    name: ${{ matrix.assetname }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64：CGO_ENABLED=0 的纯静态 ELF（无 PT_INTERP / 无 DT_NEEDED）
+          - goos: linux
+            goarch: amd64
+            assetname: linux-x64
+            binary: xray-min
+          # Windows x64：控制台版 exe
+          - goos: windows
+            goarch: amd64
+            assetname: windows-x64
+            binary: xray-min.exe
+    runs-on: ubuntu-latest
+    env:
+      GOOS: ${{ matrix.goos }}
+      GOARCH: ${{ matrix.goarch }}
+      CGO_ENABLED: 0
+      BINARY: ${{ matrix.binary }}
+      ASSET_NAME: ${{ matrix.assetname }}
+    steps:
+      - name: Checkout codebase
+        uses: actions/checkout@v7
+
+      - name: Show workflow information
+        run: |
+          echo "GOOS: $GOOS, GOARCH: $GOARCH, CGO_ENABLED: $CGO_ENABLED, RELEASE_NAME: $ASSET_NAME"
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Get project dependencies
+        run: go mod download
+
+      - name: Build xray-min
+        run: |
+          mkdir -p build_assets
+          BUILD_ID=$(git describe --always --dirty 2>/dev/null || echo custom)
+          echo "BUILD_ID=${BUILD_ID}" >> "$GITHUB_ENV"
+          echo "Building for ${GOOS}-${GOARCH} (commit ${BUILD_ID})..."
+          go build -o "build_assets/${BINARY}" \
+            -trimpath -buildvcs=false \
+            -gcflags="all=-l=4" \
+            -ldflags="-X github.com/xtls/xray-core/core.build=${BUILD_ID} -s -w -buildid=" \
+            -v ./main
+          ls -l build_assets/
+
+      - name: Verify pure static linking
+        if: matrix.goos == 'linux'
+        run: |
+          FILE="build_assets/${BINARY}"
+          file "$FILE"
+          if readelf -lW "$FILE" | grep -q 'INTERP'; then
+            echo "::error::Linux 产物含 PT_INTERP，说明仍在动态加载 libc，非纯静态"
+            exit 1
+          fi
+          if readelf -dW "$FILE" | grep -q 'NEEDED'; then
+            echo "::error::Linux 产物存在 DT_NEEDED 动态依赖"
+            exit 1
+          fi
+          echo "静态链接校验通过（无 PT_INTERP / 无 DT_NEEDED）"
+          ldd "$FILE" 2>&1 || true
+
+      - name: Smoke test
+        if: matrix.goos == 'linux'
+        run: |
+          ./build_assets/${BINARY} version
+          ./build_assets/${BINARY} x25519
+          ./build_assets/${BINARY} uuid
+          ./build_assets/${BINARY} help
+
+      - name: Copy README.md & LICENSE
+        run: |
+          cp "${GITHUB_WORKSPACE}/README.md" ./build_assets/README.md
+          cp "${GITHUB_WORKSPACE}/LICENSE" ./build_assets/LICENSE
+
+      - name: Create ZIP archive
+        shell: bash
+        run: |
+          pushd build_assets || exit 1
+          touch -mt $(date +%Y01010000) *
+          zip -9qr ../xray-min-${ASSET_NAME}.zip .
+          popd || exit 1
+          FILE=./xray-min-${ASSET_NAME}.zip
+          DGST=$FILE.dgst
+          rm -f "$DGST"
+          for METHOD in {"md5","sha1","sha256","sha512"}
+          do
+            openssl dgst -$METHOD $FILE | sed 's/([^)]*)//g' >>$DGST
+          done
+          cat "$DGST"
+          ls -l xray-min-*.zip*
+
+      - name: Upload files to Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: xray-min-${{ env.ASSET_NAME }}
+          path: |
+            ./build_assets/*
+            ./xray-min-${{ env.ASSET_NAME }}.zip
+            ./xray-min-${{ env.ASSET_NAME }}.zip.dgst
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        if: github.event_name == 'release'
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./xray-min-${{ env.ASSET_NAME }}.zip*
+          tag: ${{ github.ref }}
+          file_glob: true
